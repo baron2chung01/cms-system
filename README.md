@@ -61,6 +61,10 @@ Contributions to this project are welcome. To contribute, follow these steps:
 
 Please ensure that your contributions adhere to the project's coding conventions and guidelines.
 
+## License
+
+This Laravel CMS system is open-source and distributed under the MIT License.
+
 ## Contact
 
 If you have any questions or suggestions regarding this project, please feel free to post on this repository's issues.
