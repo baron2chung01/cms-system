@@ -25,7 +25,10 @@ class UpdateRenovateCourseRequest extends FormRequest
     public function rules()
     {
         $rules = RenovateCourse::$rules;
-        
+
+        $rules['price']            = 'nullable';
+        $rules['discounted_price'] = 'nullable';
+
         return $rules;
     }
 }

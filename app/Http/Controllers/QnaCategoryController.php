@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\QnaCategoryDataTable;
+use App\Http\Controllers\AppBaseController;
 use App\Http\Requests\CreateQnaCategoryRequest;
 use App\Http\Requests\UpdateQnaCategoryRequest;
-use App\Http\Controllers\AppBaseController;
+use App\Models\QnaCategory;
 use App\Repositories\QnaCategoryRepository;
-use Illuminate\Http\Request;
 use Flash;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class QnaCategoryController extends AppBaseController
 {
@@ -22,12 +25,11 @@ class QnaCategoryController extends AppBaseController
     /**
      * Display a listing of the QnaCategory.
      */
-    public function index(Request $request)
+    public function index(QnaCategoryDataTable $qnaCategoryDataTable)
     {
-        $qnaCategories = $this->qnaCategoryRepository->paginate(10);
+        $this->authorize('qna_categories_access');
 
-        return view('qna_categories.index')
-            ->with('qnaCategories', $qnaCategories);
+        return $qnaCategoryDataTable->render('qna_categories.index');
     }
 
     /**
@@ -35,7 +37,13 @@ class QnaCategoryController extends AppBaseController
      */
     public function create()
     {
-        return view('qna_categories.create');
+        $this->authorize('qna_categories_create');
+
+        $parents = QnaCategory::pluck('name', 'categories_uuid');
+        $user    = Auth::user();
+        $status  = QnaCategory::STATUS;
+
+        return view('qna_categories.create', compact('user', 'parents', 'status'));
     }
 
     /**
@@ -43,6 +51,8 @@ class QnaCategoryController extends AppBaseController
      */
     public function store(CreateQnaCategoryRequest $request)
     {
+        $this->authorize('qna_categories_create');
+
         $input = $request->all();
 
         $qnaCategory = $this->qnaCategoryRepository->create($input);
@@ -57,6 +67,8 @@ class QnaCategoryController extends AppBaseController
      */
     public function show($id)
     {
+        $this->authorize('qna_categories_show');
+
         $qnaCategory = $this->qnaCategoryRepository->find($id);
 
         if (empty($qnaCategory)) {
@@ -73,6 +85,8 @@ class QnaCategoryController extends AppBaseController
      */
     public function edit($id)
     {
+        $this->authorize('qna_categories_edit');
+
         $qnaCategory = $this->qnaCategoryRepository->find($id);
 
         if (empty($qnaCategory)) {
@@ -81,7 +95,13 @@ class QnaCategoryController extends AppBaseController
             return redirect(route('qnaCategories.index'));
         }
 
-        return view('qna_categories.edit')->with('qnaCategory', $qnaCategory);
+        $user     = Auth::user();
+        $parents  = QnaCategory::pluck('name', 'categories_uuid');
+        $selfUuid = QnaCategory::where('id', $id)->pluck('name', 'categories_uuid');
+        $parents  = $parents->diff($selfUuid);
+        $status   = QnaCategory::STATUS;
+
+        return view('qna_categories.edit', compact('qnaCategory', 'user', 'parents', 'status'));
     }
 
     /**
@@ -89,6 +109,8 @@ class QnaCategoryController extends AppBaseController
      */
     public function update($id, UpdateQnaCategoryRequest $request)
     {
+        $this->authorize('qna_categories_edit');
+
         $qnaCategory = $this->qnaCategoryRepository->find($id);
 
         if (empty($qnaCategory)) {
@@ -111,7 +133,9 @@ class QnaCategoryController extends AppBaseController
      */
     public function destroy($id)
     {
-        $qnaCategory = $this->qnaCategoryRepository->find($id);
+        $this->authorize('qna_categories_delete');
+
+        $qnaCategory = $this->qnaCategoryRepository->with('qnas')->find($id);
 
         if (empty($qnaCategory)) {
             Flash::error('Qna Category not found');
@@ -119,7 +143,22 @@ class QnaCategoryController extends AppBaseController
             return redirect(route('qnaCategories.index'));
         }
 
-        $this->qnaCategoryRepository->delete($id);
+        \DB::transaction(function () use ($qnaCategory, $id) {
+
+            $qnaCategory->qnas()->delete();
+
+            // parent category: remove all child
+            $childCategories = QnaCategory::where('parents_uuid', $qnaCategory->categories_uuid)->get();
+            if (isset($childCategories)) {
+                foreach ($childCategories as $child) {
+                    $child->qnas()->delete();
+                    $child->delete();
+                }
+            }
+
+            $this->qnaCategoryRepository->delete($id);
+
+        });
 
         Flash::success('Qna Category deleted successfully.');
 

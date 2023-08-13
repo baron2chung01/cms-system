@@ -10,9 +10,11 @@ class SpecialPromotionRepository extends BaseRepository
     protected $fieldSearchable = [
         'special_promotion_uuid',
         'code',
+        'value',
         'name',
         'short_description',
         'description',
+        'url',
         'status',
         'created_by',
         'updated_by',

@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\MaterialsCategoryDataTable;
+use App\Http\Controllers\AppBaseController;
 use App\Http\Requests\CreateMaterialsCategoryRequest;
 use App\Http\Requests\UpdateMaterialsCategoryRequest;
-use App\Http\Controllers\AppBaseController;
+use App\Models\MaterialsCategory;
 use App\Repositories\MaterialsCategoryRepository;
-use Illuminate\Http\Request;
 use Flash;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class MaterialsCategoryController extends AppBaseController
 {
@@ -22,12 +25,9 @@ class MaterialsCategoryController extends AppBaseController
     /**
      * Display a listing of the MaterialsCategory.
      */
-    public function index(Request $request)
+    public function index(MaterialsCategoryDataTable $materialsCategoryDataTable)
     {
-        $materialsCategories = $this->materialsCategoryRepository->paginate(10);
-
-        return view('materials_categories.index')
-            ->with('materialsCategories', $materialsCategories);
+        return $materialsCategoryDataTable->render('materials_categories.index');
     }
 
     /**
@@ -35,7 +35,10 @@ class MaterialsCategoryController extends AppBaseController
      */
     public function create()
     {
-        return view('materials_categories.create');
+        $parents = MaterialsCategory::pluck('name', 'materials_categories_uuid');
+        $status  = MaterialsCategory::STATUS;
+        $user    = Auth::user();
+        return view('materials_categories.create', compact('parents', 'status', 'user'));
     }
 
     /**
@@ -80,8 +83,13 @@ class MaterialsCategoryController extends AppBaseController
 
             return redirect(route('materialsCategories.index'));
         }
+        $status   = MaterialsCategory::STATUS;
+        $user     = Auth::user();
+        $parents  = MaterialsCategory::pluck('name', 'materials_categories_uuid');
+        $selfUuid = MaterialsCategory::where('id', $id)->pluck('name', 'materials_categories_uuid');
+        $parents  = $parents->diff($selfUuid);
 
-        return view('materials_categories.edit')->with('materialsCategory', $materialsCategory);
+        return view('materials_categories.edit', compact('materialsCategory', 'user', 'status', 'parents'));
     }
 
     /**
@@ -111,7 +119,7 @@ class MaterialsCategoryController extends AppBaseController
      */
     public function destroy($id)
     {
-        $materialsCategory = $this->materialsCategoryRepository->find($id);
+        $materialsCategory = $this->materialsCategoryRepository->with('materials')->find($id);
 
         if (empty($materialsCategory)) {
             Flash::error('Materials Category not found');
@@ -119,7 +127,25 @@ class MaterialsCategoryController extends AppBaseController
             return redirect(route('materialsCategories.index'));
         }
 
-        $this->materialsCategoryRepository->delete($id);
+        \DB::transaction(function () use ($materialsCategory, $id) {
+            $materialsCategory->update([
+                'status'     => MaterialsCategory::DELETE,
+                'deleted_by' => Auth::user()->users_uuid,
+            ]);
+
+            $materialsCategory->materials()->delete();
+
+            // parent category: remove all child
+            $childCategories = MaterialsCategory::where('parents_uuid', $materialsCategory->materials_categories_uuid)->get();
+            if (isset($childCategories)) {
+                foreach ($childCategories as $child) {
+                    $child->materials()->delete();
+                    $child->delete();
+                }
+            }
+
+            $this->materialsCategoryRepository->delete($id);
+        });
 
         Flash::success('Materials Category deleted successfully.');
 

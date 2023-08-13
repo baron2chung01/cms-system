@@ -17,9 +17,11 @@ class BlogRepository extends BaseRepository
         'description',
         'top_blog',
         'status',
+        'views',
+        'url',
         'created_by',
         'updated_by',
-        'deleted_by'
+        'deleted_by',
     ];
 
     public function getFieldsSearchable(): array

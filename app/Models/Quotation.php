@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Quotation extends Model
 {
+    use HasFactory, SoftDeletes;
+
     public $table = 'quotations';
 
     public $fillable = [
@@ -41,5 +45,5 @@ class Quotation extends Model
         'deleted_at' => 'nullable'
     ];
 
-    
+
 }

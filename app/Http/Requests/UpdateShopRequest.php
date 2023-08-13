@@ -25,7 +25,16 @@ class UpdateShopRequest extends FormRequest
     public function rules()
     {
         $rules = Shop::$rules;
-        
+        $rules['payment_methods'] = 'nullable|string';
+        $rules['payments'] = 'nullable';
+
         return $rules;
+    }
+
+    public function messages()
+    {
+        return [
+            'desc.required' => '請輸入商店簡介',
+        ];
     }
 }

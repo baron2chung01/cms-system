@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\CategoryDataTable;
 use App\Http\Requests\CreateCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Http\Controllers\AppBaseController;
@@ -22,13 +23,11 @@ class CategoryController extends AppBaseController
     /**
      * Display a listing of the Category.
      */
-    public function index(Request $request)
+    public function index(CategoryDataTable $categoryDataTable)
     {
-        $categories = $this->categoryRepository->paginate(10);
-
-        return view('categories.index')
-            ->with('categories', $categories);
+    return $categoryDataTable->render('categories.index');
     }
+
 
     /**
      * Show the form for creating a new Category.

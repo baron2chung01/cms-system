@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\BlogCategoryDataTable;
+use App\Http\Controllers\AppBaseController;
 use App\Http\Requests\CreateBlogCategoryRequest;
 use App\Http\Requests\UpdateBlogCategoryRequest;
-use App\Http\Controllers\AppBaseController;
+use App\Models\BlogCategory;
 use App\Repositories\BlogCategoryRepository;
-use Illuminate\Http\Request;
 use Flash;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class BlogCategoryController extends AppBaseController
 {
@@ -22,12 +25,11 @@ class BlogCategoryController extends AppBaseController
     /**
      * Display a listing of the BlogCategory.
      */
-    public function index(Request $request)
+    public function index(BlogCategoryDataTable $blogCategoryDataTable)
     {
-        $blogCategories = $this->blogCategoryRepository->paginate(10);
+        $this->authorize('blog_categories_access');
 
-        return view('blog_categories.index')
-            ->with('blogCategories', $blogCategories);
+        return $blogCategoryDataTable->render('blog_categories.index');
     }
 
     /**
@@ -35,7 +37,15 @@ class BlogCategoryController extends AppBaseController
      */
     public function create()
     {
-        return view('blog_categories.create');
+        $this->authorize('blog_categories_create');
+
+        $user = Auth::user();
+
+        $status = BlogCategory::STATUS;
+
+        $parents = BlogCategory::pluck('name', 'blog_categories_uuid');
+
+        return view('blog_categories.create', compact('user', 'status', 'parents'));
     }
 
     /**
@@ -43,6 +53,8 @@ class BlogCategoryController extends AppBaseController
      */
     public function store(CreateBlogCategoryRequest $request)
     {
+        $this->authorize('blog_categories_create');
+
         $input = $request->all();
 
         $blogCategory = $this->blogCategoryRepository->create($input);
@@ -57,6 +69,8 @@ class BlogCategoryController extends AppBaseController
      */
     public function show($id)
     {
+        $this->authorize('blog_categories_show');
+
         $blogCategory = $this->blogCategoryRepository->find($id);
 
         if (empty($blogCategory)) {
@@ -73,7 +87,19 @@ class BlogCategoryController extends AppBaseController
      */
     public function edit($id)
     {
+        $this->authorize('blog_categories_edit');
+
         $blogCategory = $this->blogCategoryRepository->find($id);
+
+        $user = Auth::user();
+
+        $status = BlogCategory::STATUS;
+
+        $parents = BlogCategory::pluck('name', 'blog_categories_uuid');
+
+        $selfUuid = BlogCategory::where('id', $id)->pluck('name', 'blog_categories_uuid');
+
+        $parents = $parents->diff($selfUuid);
 
         if (empty($blogCategory)) {
             Flash::error('Blog Category not found');
@@ -81,7 +107,7 @@ class BlogCategoryController extends AppBaseController
             return redirect(route('blogCategories.index'));
         }
 
-        return view('blog_categories.edit')->with('blogCategory', $blogCategory);
+        return view('blog_categories.edit', compact('blogCategory', 'user', 'status', 'parents'));
     }
 
     /**
@@ -89,6 +115,8 @@ class BlogCategoryController extends AppBaseController
      */
     public function update($id, UpdateBlogCategoryRequest $request)
     {
+        $this->authorize('blog_categories_edit');
+
         $blogCategory = $this->blogCategoryRepository->find($id);
 
         if (empty($blogCategory)) {
@@ -111,7 +139,9 @@ class BlogCategoryController extends AppBaseController
      */
     public function destroy($id)
     {
-        $blogCategory = $this->blogCategoryRepository->find($id);
+        $this->authorize('blog_categories_delete');
+
+        $blogCategory = $this->blogCategoryRepository->with('blogs')->find($id);
 
         if (empty($blogCategory)) {
             Flash::error('Blog Category not found');
@@ -119,7 +149,25 @@ class BlogCategoryController extends AppBaseController
             return redirect(route('blogCategories.index'));
         }
 
-        $this->blogCategoryRepository->delete($id);
+        \DB::transaction(function () use ($blogCategory, $id) {
+            $blogCategory->update([
+                'status'     => BlogCategory::DELETE,
+                'deleted_by' => Auth::user()->users_uuid,
+            ]);
+
+            $blogCategory->blogs()->delete();
+
+            // parent category: remove all child
+            $childCategories = BlogCategory::where('parents_uuid', $blogCategory->blog_categories_uuid)->get();
+            if (isset($childCategories)) {
+                foreach ($childCategories as $child) {
+                    $child->blogs()->delete();
+                    $child->delete();
+                }
+            }
+
+            $this->blogCategoryRepository->delete($id);
+        });
 
         Flash::success('Blog Category deleted successfully.');
 

@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use Flash;
+use App\Models\Assets;
+use Illuminate\Support\Str;
+use Illuminate\Http\Request;
+use App\DataTables\ArticleDataTable;
+use Illuminate\Support\Facades\Auth;
+use App\Repositories\ArticleRepository;
+use App\Http\Controllers\AppBaseController;
 use App\Http\Requests\CreateArticleRequest;
 use App\Http\Requests\UpdateArticleRequest;
-use App\Http\Controllers\AppBaseController;
-use App\Repositories\ArticleRepository;
-use Illuminate\Http\Request;
-use Flash;
 
 class ArticleController extends AppBaseController
 {
@@ -22,12 +26,9 @@ class ArticleController extends AppBaseController
     /**
      * Display a listing of the Article.
      */
-    public function index(Request $request)
+    public function index(ArticleDataTable $articleDataTable)
     {
-        $articles = $this->articleRepository->paginate(10);
-
-        return view('articles.index')
-            ->with('articles', $articles);
+        return $articleDataTable->render('articles.index');
     }
 
     /**
@@ -35,7 +36,8 @@ class ArticleController extends AppBaseController
      */
     public function create()
     {
-        return view('articles.create');
+        $user = Auth::user();
+        return view('articles.create', compact('user'));
     }
 
     /**
@@ -46,6 +48,25 @@ class ArticleController extends AppBaseController
         $input = $request->all();
 
         $article = $this->articleRepository->create($input);
+
+        // handle image asset
+        $images = $request->file('file-input');
+
+        if (isset($images)) {
+            foreach ($images as $image) {
+                $imageName = date("Ymdhis") . $image->getClientOriginalName();
+                $image->storeAs('public/', $imageName);
+                $blogImage = Assets::create([
+                    'assets_uuid' => Str::uuid(),
+                    'module_uuid' => $article->articles_uuid,
+                    'resource_path' => "/storage/{$imageName}",
+                    'file_name' => $imageName,
+                    'type' => $image->getClientMimeType(),
+                    'file_size' => $image->getSize(),
+                    'status' => Assets::ACTIVE,
+                ]);
+            }
+        }
 
         Flash::success('Article saved successfully.');
 
@@ -65,7 +86,9 @@ class ArticleController extends AppBaseController
             return redirect(route('articles.index'));
         }
 
-        return view('articles.show')->with('article', $article);
+        $images = Assets::where('module_uuid', $article->articles_uuid)->get();
+
+        return view('articles.show', compact('article', 'images'));
     }
 
     /**
@@ -73,6 +96,8 @@ class ArticleController extends AppBaseController
      */
     public function edit($id)
     {
+        $user = Auth::user();
+
         $article = $this->articleRepository->find($id);
 
         if (empty($article)) {
@@ -81,7 +106,9 @@ class ArticleController extends AppBaseController
             return redirect(route('articles.index'));
         }
 
-        return view('articles.edit')->with('article', $article);
+        $images = Assets::where('module_uuid', $article->articles_uuid)->get();
+
+        return view('articles.edit', compact('article', 'user', 'images'));
     }
 
     /**

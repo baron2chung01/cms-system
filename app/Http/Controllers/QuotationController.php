@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\QuotationDataTable;
 use App\Http\Requests\CreateQuotationRequest;
 use App\Http\Requests\UpdateQuotationRequest;
 use App\Http\Controllers\AppBaseController;
@@ -22,19 +23,21 @@ class QuotationController extends AppBaseController
     /**
      * Display a listing of the Quotation.
      */
-    public function index(Request $request)
+    public function index(QuotationDataTable $quotationDataTable)
     {
-        $quotations = $this->quotationRepository->paginate(10);
+        $this->authorize('quotations_access');
 
-        return view('quotations.index')
-            ->with('quotations', $quotations);
+        return $quotationDataTable->render('quotations.index');
     }
+
 
     /**
      * Show the form for creating a new Quotation.
      */
     public function create()
     {
+        $this->authorize('quotations_create');
+
         return view('quotations.create');
     }
 
@@ -43,6 +46,8 @@ class QuotationController extends AppBaseController
      */
     public function store(CreateQuotationRequest $request)
     {
+        $this->authorize('quotations_create');
+
         $input = $request->all();
 
         $quotation = $this->quotationRepository->create($input);
@@ -57,6 +62,8 @@ class QuotationController extends AppBaseController
      */
     public function show($id)
     {
+        $this->authorize('quotations_show');
+
         $quotation = $this->quotationRepository->find($id);
 
         if (empty($quotation)) {
@@ -73,6 +80,8 @@ class QuotationController extends AppBaseController
      */
     public function edit($id)
     {
+        $this->authorize('quotations_edit');
+
         $quotation = $this->quotationRepository->find($id);
 
         if (empty($quotation)) {
@@ -89,6 +98,8 @@ class QuotationController extends AppBaseController
      */
     public function update($id, UpdateQuotationRequest $request)
     {
+        $this->authorize('quotations_edit');
+
         $quotation = $this->quotationRepository->find($id);
 
         if (empty($quotation)) {
@@ -111,6 +122,8 @@ class QuotationController extends AppBaseController
      */
     public function destroy($id)
     {
+        $this->authorize('quotations_delete');
+
         $quotation = $this->quotationRepository->find($id);
 
         if (empty($quotation)) {

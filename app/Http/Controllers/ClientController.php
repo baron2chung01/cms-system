@@ -2,12 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\ClientDataTable;
+use App\Http\Controllers\AppBaseController;
 use App\Http\Requests\CreateClientRequest;
 use App\Http\Requests\UpdateClientRequest;
-use App\Http\Controllers\AppBaseController;
+use App\Models\Assets;
+use App\Models\Client;
+use App\Models\Member;
 use App\Repositories\ClientRepository;
-use Illuminate\Http\Request;
 use Flash;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Intervention\Image\Facades\Image;
 
 class ClientController extends AppBaseController
 {
@@ -22,12 +29,11 @@ class ClientController extends AppBaseController
     /**
      * Display a listing of the Client.
      */
-    public function index(Request $request)
+    public function index(ClientDataTable $clientDataTable)
     {
-        $clients = $this->clientRepository->paginate(10);
+        $this->authorize('members_access');
 
-        return view('clients.index')
-            ->with('clients', $clients);
+        return $clientDataTable->render('clients.index');
     }
 
     /**
@@ -35,7 +41,10 @@ class ClientController extends AppBaseController
      */
     public function create()
     {
-        return view('clients.create');
+        $this->authorize('members_create');
+
+        $status = Client::STATUS;
+        return view('clients.create', compact('status'));
     }
 
     /**
@@ -43,9 +52,45 @@ class ClientController extends AppBaseController
      */
     public function store(CreateClientRequest $request)
     {
+        $this->authorize('members_create');
+
         $input = $request->all();
 
+        // input encrypted password
+        $input['password'] = bcrypt($input['password']);
+
         $client = $this->clientRepository->create($input);
+
+        $images = $request->file('file-input');
+
+        if (isset($images)) {
+            foreach ($images as $image) {
+                $imageName = date("Ymdhis") . $image->getClientOriginalName();
+                $imageResized = Image::make($image)->fit(80, 80);
+                Storage::disk('public')->put($imageName, $imageResized->encode());
+
+                Assets::create([
+                    'assets_uuid'   => Str::uuid(),
+                    'module_uuid'   => $client->clients_uuid,
+                    'resource_path' => "/storage/{$imageName}",
+                    'file_name'     => $imageName,
+                    'type'          => 'image',
+                    'file_size'     => $image->getSize(),
+                    'status'        => Assets::ACTIVE,
+                ]);
+            }
+        }
+
+        Member::create([
+            'members_uuid' => Str::uuid(),
+            'clients_uuid' => $client->clients_uuid,
+            'name'         => $input['last_name'] . $input['first_name'],
+            'email'        => $input['email'],
+            'phone'        => $input['phone'],
+            'password'     => $input['password'],
+            'status'       => Member::ACTIVE,
+            'type'         => Member::CLIENT,
+        ]);
 
         Flash::success('Client saved successfully.');
 
@@ -57,6 +102,8 @@ class ClientController extends AppBaseController
      */
     public function show($id)
     {
+        $this->authorize('members_show');
+
         $client = $this->clientRepository->find($id);
 
         if (empty($client)) {
@@ -65,7 +112,13 @@ class ClientController extends AppBaseController
             return redirect(route('clients.index'));
         }
 
-        return view('clients.show')->with('client', $client);
+        $status = Client::STATUS;
+
+        $images = $client->image()->get();
+
+        $pointRecords = $client->member->pointHistories;
+
+        return view('clients.show', compact('client', 'status', 'images', 'pointRecords'));
     }
 
     /**
@@ -73,6 +126,8 @@ class ClientController extends AppBaseController
      */
     public function edit($id)
     {
+        $this->authorize('members_edit');
+
         $client = $this->clientRepository->find($id);
 
         if (empty($client)) {
@@ -81,7 +136,11 @@ class ClientController extends AppBaseController
             return redirect(route('clients.index'));
         }
 
-        return view('clients.edit')->with('client', $client);
+        $status = Client::STATUS;
+
+        $images = Assets::where('module_uuid', $client->clients_uuid)->get();
+
+        return view('clients.edit', compact('client', 'status', 'images'));
     }
 
     /**
@@ -89,6 +148,8 @@ class ClientController extends AppBaseController
      */
     public function update($id, UpdateClientRequest $request)
     {
+        $this->authorize('members_edit');
+
         $client = $this->clientRepository->find($id);
 
         if (empty($client)) {
@@ -97,7 +158,25 @@ class ClientController extends AppBaseController
             return redirect(route('clients.index'));
         }
 
-        $client = $this->clientRepository->update($request->all(), $id);
+        $input = $request->all();
+
+        if (!isset($input['password'])) {
+            $input['password'] = $client->password;
+        }
+
+        // input encrypted password
+        $input['password'] = bcrypt($input['password']);
+
+        $client = $this->clientRepository->update($input, $id);
+
+        $client->member->update([
+            'name'     => $input['last_name'] . $input['first_name'],
+            'email'    => $input['email'],
+            'phone'    => $input['phone'],
+            'password' => $input['password'] ?? $client->member->password,
+            'status'   => Member::ACTIVE,
+            'type'     => Member::CLIENT,
+        ]);
 
         Flash::success('Client updated successfully.');
 
@@ -111,6 +190,8 @@ class ClientController extends AppBaseController
      */
     public function destroy($id)
     {
+        $this->authorize('members_delete');
+
         $client = $this->clientRepository->find($id);
 
         if (empty($client)) {
@@ -118,6 +199,10 @@ class ClientController extends AppBaseController
 
             return redirect(route('clients.index'));
         }
+
+        $client->update([
+            'status' => Client::DELETE,
+        ]);
 
         $this->clientRepository->delete($id);
 

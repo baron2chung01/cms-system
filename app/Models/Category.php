@@ -3,9 +3,26 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Category extends Model
 {
+    use SoftDeletes;
+    use HasFactory;
+
+    const ACTIVE   = 0;
+    const INACTIVE = 1;
+    const DRAFT    = 2;
+    const DELETE   = 3;
+
+    const STATUS = [
+        self::ACTIVE   => 'Active',
+        self::INACTIVE => 'Inactive',
+        self::DRAFT    => 'Draft',
+        self::DELETE   => 'Delete',
+    ];
+
     public $table = 'categories';
 
     public $fillable = [
@@ -43,5 +60,5 @@ class Category extends Model
         'deleted_at' => 'nullable'
     ];
 
-    
+
 }

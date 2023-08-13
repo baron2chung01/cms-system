@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\RegionDataTable;
+use App\Http\Controllers\AppBaseController;
 use App\Http\Requests\CreateRegionRequest;
 use App\Http\Requests\UpdateRegionRequest;
-use App\Http\Controllers\AppBaseController;
 use App\Repositories\RegionRepository;
-use Illuminate\Http\Request;
 use Flash;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class RegionController extends AppBaseController
 {
@@ -22,12 +24,11 @@ class RegionController extends AppBaseController
     /**
      * Display a listing of the Region.
      */
-    public function index(Request $request)
+    public function index(RegionDataTable $regionDataTable)
     {
-        $regions = $this->regionRepository->paginate(10);
+        $this->authorize('regions_access');
 
-        return view('regions.index')
-            ->with('regions', $regions);
+        return $regionDataTable->render('regions.index');
     }
 
     /**
@@ -35,7 +36,10 @@ class RegionController extends AppBaseController
      */
     public function create()
     {
-        return view('regions.create');
+        $this->authorize('regions_create');
+
+        $user = Auth::user();
+        return view('regions.create', compact('user'));
     }
 
     /**
@@ -43,6 +47,8 @@ class RegionController extends AppBaseController
      */
     public function store(CreateRegionRequest $request)
     {
+        $this->authorize('regions_create');
+
         $input = $request->all();
 
         $region = $this->regionRepository->create($input);
@@ -57,6 +63,8 @@ class RegionController extends AppBaseController
      */
     public function show($id)
     {
+        $this->authorize('regions_show');
+
         $region = $this->regionRepository->find($id);
 
         if (empty($region)) {
@@ -73,6 +81,8 @@ class RegionController extends AppBaseController
      */
     public function edit($id)
     {
+        $this->authorize('regions_edit');
+
         $region = $this->regionRepository->find($id);
 
         if (empty($region)) {
@@ -81,7 +91,9 @@ class RegionController extends AppBaseController
             return redirect(route('regions.index'));
         }
 
-        return view('regions.edit')->with('region', $region);
+        $user = Auth::user();
+
+        return view('regions.edit', compact('region', 'user'));
     }
 
     /**
@@ -89,6 +101,8 @@ class RegionController extends AppBaseController
      */
     public function update($id, UpdateRegionRequest $request)
     {
+        $this->authorize('regions_edit');
+
         $region = $this->regionRepository->find($id);
 
         if (empty($region)) {
@@ -111,6 +125,8 @@ class RegionController extends AppBaseController
      */
     public function destroy($id)
     {
+        $this->authorize('regions_delete');
+
         $region = $this->regionRepository->find($id);
 
         if (empty($region)) {
@@ -119,7 +135,9 @@ class RegionController extends AppBaseController
             return redirect(route('regions.index'));
         }
 
-        $this->regionRepository->delete($id);
+        \DB::transaction(function () use ($region, $id) {
+            $this->regionRepository->delete($id);
+        });
 
         Flash::success('Region deleted successfully.');
 

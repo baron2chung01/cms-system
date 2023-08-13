@@ -54,11 +54,35 @@ abstract class BaseRepository
     /**
      * Paginate records for scaffold.
      */
-    public function paginate(int $perPage, array $columns = ['*']): LengthAwarePaginator
+    public function paginate(int $perPage, array $search = [], int $skip = null, int $limit = null, array $columns = ['*']): LengthAwarePaginator
+    {
+        $query = $this->allQuery($search, $skip, $limit);
+
+        return $query->paginate($perPage, $columns);
+    }
+
+    // public function paginate(int $perPage, array $columns = ['*']): LengthAwarePaginator
+    // {
+    //     $query = $this->allQuery();
+
+    //     return $query->paginate($perPage, $columns);
+    // }
+
+    public function with($relation): \Illuminate\Database\Eloquent\Builder
     {
         $query = $this->allQuery();
 
-        return $query->paginate($perPage, $columns);
+        return $query->with($relation);
+    }
+
+    /**
+     * Pluck records for scaffold.
+     */
+    public function pluck(string $data1, string $data2 = null): \Illuminate\Support\Collection
+    {
+        $query = $this->allQuery();
+
+        return $query->pluck($data1, $data2);
     }
 
     /**
@@ -69,7 +93,7 @@ abstract class BaseRepository
         $query = $this->model->newQuery();
 
         if (count($search)) {
-            foreach($search as $key => $value) {
+            foreach ($search as $key => $value) {
                 if (in_array($key, $this->getFieldsSearchable())) {
                     $query->where($key, $value);
                 }
@@ -119,6 +143,18 @@ abstract class BaseRepository
         $query = $this->model->newQuery();
 
         return $query->find($id, $columns);
+    }
+
+    /**
+     * Find model record for given uuid
+     *
+     * @return \Illuminate\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Builder[]|\Illuminate\Database\Eloquent\Collection|Model|null
+     */
+    public function where(string $field, $value)
+    {
+        $query = $this->model->newQuery();
+
+        return $query->where($field, $value);
     }
 
     /**

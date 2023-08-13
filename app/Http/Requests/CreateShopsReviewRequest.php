@@ -24,6 +24,8 @@ class CreateShopsReviewRequest extends FormRequest
      */
     public function rules()
     {
-        return ShopsReview::$rules;
+        $rules           = ShopsReview::$rules;
+        $rules['rating'] = 'nullable';
+        return $rules;
     }
 }

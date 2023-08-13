@@ -24,6 +24,9 @@ class CreateSpecialPromotionRequest extends FormRequest
      */
     public function rules()
     {
+        $rules = SpecialPromotion::$rules;
+        $rules['shops'] = 'required';
+
         return SpecialPromotion::$rules;
     }
 }

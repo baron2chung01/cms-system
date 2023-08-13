@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\CreateRenovateCasesRequest;
-use App\Http\Requests\UpdateRenovateCasesRequest;
+use Flash;
+use App\Models\Assets;
+use Illuminate\Support\Str;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use App\DataTables\RenovateCasesDataTable;
 use App\Http\Controllers\AppBaseController;
 use App\Repositories\RenovateCasesRepository;
-use Illuminate\Http\Request;
-use Flash;
+use App\Http\Requests\CreateRenovateCasesRequest;
+use App\Http\Requests\UpdateRenovateCasesRequest;
 
 class RenovateCasesController extends AppBaseController
 {
@@ -22,12 +26,9 @@ class RenovateCasesController extends AppBaseController
     /**
      * Display a listing of the RenovateCases.
      */
-    public function index(Request $request)
+    public function index(RenovateCasesDataTable $renovateCasesDataTable)
     {
-        $renovateCases = $this->renovateCasesRepository->paginate(10);
-
-        return view('renovate_cases.index')
-            ->with('renovateCases', $renovateCases);
+        return $renovateCasesDataTable->render('renovate_cases.index');
     }
 
     /**
@@ -35,7 +36,8 @@ class RenovateCasesController extends AppBaseController
      */
     public function create()
     {
-        return view('renovate_cases.create');
+        $user = Auth::user();
+        return view('renovate_cases.create', compact('user'));
     }
 
     /**
@@ -46,6 +48,25 @@ class RenovateCasesController extends AppBaseController
         $input = $request->all();
 
         $renovateCases = $this->renovateCasesRepository->create($input);
+
+        // handle image asset
+        $images = $request->file('file-input');
+
+        if (isset($images)) {
+            foreach ($images as $image) {
+                $imageName = date("Ymdhis") . $image->getClientOriginalName();
+                $image->storeAs('public/', $imageName);
+                $blogImage = Assets::create([
+                    'assets_uuid' => Str::uuid(),
+                    'module_uuid' => $renovateCases->renovate_cases_uuid,
+                    'resource_path' => "/storage/{$imageName}",
+                    'file_name' => $imageName,
+                    'type' => $image->getClientMimeType(),
+                    'file_size' => $image->getSize(),
+                    'status' => Assets::ACTIVE,
+                ]);
+            }
+        }
 
         Flash::success('Renovate Cases saved successfully.');
 
@@ -65,7 +86,9 @@ class RenovateCasesController extends AppBaseController
             return redirect(route('renovateCases.index'));
         }
 
-        return view('renovate_cases.show')->with('renovateCases', $renovateCases);
+        $images = Assets::where('module_uuid', $renovateCases->renovate_cases_uuid)->get();
+
+        return view('renovate_cases.show',compact('renovateCases', 'images'));
     }
 
     /**
@@ -80,8 +103,11 @@ class RenovateCasesController extends AppBaseController
 
             return redirect(route('renovateCases.index'));
         }
+        $user = Auth::user();
 
-        return view('renovate_cases.edit')->with('renovateCases', $renovateCases);
+        $images = Assets::where('module_uuid', $renovateCases->renovate_cases_uuid)->get();
+
+        return view('renovate_cases.edit', compact('renovateCases', 'user', 'images'));
     }
 
     /**

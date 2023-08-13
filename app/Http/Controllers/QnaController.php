@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\QnaDataTable;
+use App\Http\Controllers\AppBaseController;
 use App\Http\Requests\CreateQnaRequest;
 use App\Http\Requests\UpdateQnaRequest;
-use App\Http\Controllers\AppBaseController;
+use App\Models\Qna;
+use App\Models\QnaCategory;
 use App\Repositories\QnaRepository;
-use Illuminate\Http\Request;
 use Flash;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class QnaController extends AppBaseController
 {
@@ -22,12 +26,11 @@ class QnaController extends AppBaseController
     /**
      * Display a listing of the Qna.
      */
-    public function index(Request $request)
+    public function index(QnaDataTable $qnaDataTable)
     {
-        $qnas = $this->qnaRepository->paginate(10);
+        $this->authorize('qna_access');
 
-        return view('qnas.index')
-            ->with('qnas', $qnas);
+        return $qnaDataTable->render('qnas.index');
     }
 
     /**
@@ -35,7 +38,12 @@ class QnaController extends AppBaseController
      */
     public function create()
     {
-        return view('qnas.create');
+        $this->authorize('qna_create');
+
+        $user       = Auth::user();
+        $categories = QnaCategory::pluck('name', 'categories_uuid');
+        $status     = Qna::STATUS;
+        return view('qnas.create', compact('user', 'categories', 'status'));
     }
 
     /**
@@ -43,6 +51,8 @@ class QnaController extends AppBaseController
      */
     public function store(CreateQnaRequest $request)
     {
+        $this->authorize('qna_create');
+
         $input = $request->all();
 
         $qna = $this->qnaRepository->create($input);
@@ -57,6 +67,8 @@ class QnaController extends AppBaseController
      */
     public function show($id)
     {
+        $this->authorize('qna_show');
+
         $qna = $this->qnaRepository->find($id);
 
         if (empty($qna)) {
@@ -73,6 +85,8 @@ class QnaController extends AppBaseController
      */
     public function edit($id)
     {
+        $this->authorize('qna_edit');
+
         $qna = $this->qnaRepository->find($id);
 
         if (empty($qna)) {
@@ -81,7 +95,11 @@ class QnaController extends AppBaseController
             return redirect(route('qnas.index'));
         }
 
-        return view('qnas.edit')->with('qna', $qna);
+        $user       = Auth::user();
+        $categories = QnaCategory::pluck('name', 'categories_uuid');
+        $status     = Qna::STATUS;
+
+        return view('qnas.edit', compact('qna', 'categories', 'status', 'user'));
     }
 
     /**
@@ -89,6 +107,8 @@ class QnaController extends AppBaseController
      */
     public function update($id, UpdateQnaRequest $request)
     {
+        $this->authorize('qna_edit');
+
         $qna = $this->qnaRepository->find($id);
 
         if (empty($qna)) {
@@ -111,6 +131,8 @@ class QnaController extends AppBaseController
      */
     public function destroy($id)
     {
+        $this->authorize('qna_delete');
+
         $qna = $this->qnaRepository->find($id);
 
         if (empty($qna)) {

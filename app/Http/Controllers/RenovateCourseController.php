@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\RenovateCourseDataTable;
+use App\Http\Controllers\AppBaseController;
 use App\Http\Requests\CreateRenovateCourseRequest;
 use App\Http\Requests\UpdateRenovateCourseRequest;
-use App\Http\Controllers\AppBaseController;
+use App\Models\Assets;
+use App\Models\RenovateCourseCategory;
 use App\Repositories\RenovateCourseRepository;
-use Illuminate\Http\Request;
 use Flash;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class RenovateCourseController extends AppBaseController
 {
@@ -22,12 +26,11 @@ class RenovateCourseController extends AppBaseController
     /**
      * Display a listing of the RenovateCourse.
      */
-    public function index(Request $request)
+    public function index(RenovateCourseDataTable $renovateCourseDataTable)
     {
-        $renovateCourses = $this->renovateCourseRepository->paginate(10);
+        $this->authorize('renovate_courses_access');
 
-        return view('renovate_courses.index')
-            ->with('renovateCourses', $renovateCourses);
+        return $renovateCourseDataTable->render('renovate_courses.index');
     }
 
     /**
@@ -35,7 +38,10 @@ class RenovateCourseController extends AppBaseController
      */
     public function create()
     {
-        return view('renovate_courses.create');
+        $this->authorize('renovate_courses_create');
+
+        $categories = RenovateCourseCategory::pluck('name', 'course_categories_uuid');
+        return view('renovate_courses.create', compact('categories'));
     }
 
     /**
@@ -43,9 +49,30 @@ class RenovateCourseController extends AppBaseController
      */
     public function store(CreateRenovateCourseRequest $request)
     {
+        $this->authorize('renovate_courses_create');
+
         $input = $request->all();
 
         $renovateCourse = $this->renovateCourseRepository->create($input);
+
+        // handle image asset
+        $images = $request->file('file-input');
+
+        if (isset($images)) {
+            foreach ($images as $image) {
+                $imageName = date("Ymdhis") . $image->getClientOriginalName();
+                $image->storeAs('public/', $imageName);
+                $blogImage = Assets::create([
+                    'assets_uuid'   => Str::uuid(),
+                    'module_uuid'   => $renovateCourse->renovate_courses_uuid,
+                    'resource_path' => "/storage/{$imageName}",
+                    'file_name'     => $imageName,
+                    'type'          => $image->getClientMimeType(),
+                    'file_size'     => $image->getSize(),
+                    'status'        => Assets::ACTIVE,
+                ]);
+            }
+        }
 
         Flash::success('Renovate Course saved successfully.');
 
@@ -57,6 +84,8 @@ class RenovateCourseController extends AppBaseController
      */
     public function show($id)
     {
+        $this->authorize('renovate_courses_show');
+
         $renovateCourse = $this->renovateCourseRepository->find($id);
 
         if (empty($renovateCourse)) {
@@ -65,7 +94,9 @@ class RenovateCourseController extends AppBaseController
             return redirect(route('renovateCourses.index'));
         }
 
-        return view('renovate_courses.show')->with('renovateCourse', $renovateCourse);
+        $images = Assets::where('module_uuid', $renovateCourse->renovate_courses_uuid)->get();
+
+        return view('renovate_courses.show', compact('renovateCourse', 'images'));
     }
 
     /**
@@ -73,6 +104,8 @@ class RenovateCourseController extends AppBaseController
      */
     public function edit($id)
     {
+        $this->authorize('renovate_courses_edit');
+
         $renovateCourse = $this->renovateCourseRepository->find($id);
 
         if (empty($renovateCourse)) {
@@ -81,7 +114,11 @@ class RenovateCourseController extends AppBaseController
             return redirect(route('renovateCourses.index'));
         }
 
-        return view('renovate_courses.edit')->with('renovateCourse', $renovateCourse);
+        $images = Assets::where('module_uuid', $renovateCourse->renovate_courses_uuid)->get();
+
+        $categories = RenovateCourseCategory::pluck('name', 'course_categories_uuid');
+
+        return view('renovate_courses.edit', compact('renovateCourse', 'images', 'categories'));
     }
 
     /**
@@ -89,6 +126,8 @@ class RenovateCourseController extends AppBaseController
      */
     public function update($id, UpdateRenovateCourseRequest $request)
     {
+        $this->authorize('renovate_courses_edit');
+
         $renovateCourse = $this->renovateCourseRepository->find($id);
 
         if (empty($renovateCourse)) {
@@ -97,7 +136,12 @@ class RenovateCourseController extends AppBaseController
             return redirect(route('renovateCourses.index'));
         }
 
-        $renovateCourse = $this->renovateCourseRepository->update($request->all(), $id);
+        $input = $request->all();
+
+        $input['price']            = (int) str_ireplace([',', '$'], '', $input['price']);
+        $input['discounted_price'] = (int) str_ireplace([',', '$'], '', $input['discounted_price']);
+
+        $renovateCourse = $this->renovateCourseRepository->update($input, $id);
 
         Flash::success('Renovate Course updated successfully.');
 
@@ -111,6 +155,8 @@ class RenovateCourseController extends AppBaseController
      */
     public function destroy($id)
     {
+        $this->authorize('renovate_courses_delete');
+
         $renovateCourse = $this->renovateCourseRepository->find($id);
 
         if (empty($renovateCourse)) {

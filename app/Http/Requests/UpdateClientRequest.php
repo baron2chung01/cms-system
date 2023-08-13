@@ -25,7 +25,8 @@ class UpdateClientRequest extends FormRequest
     public function rules()
     {
         $rules = Client::$rules;
-        
+        $rules['password'] = 'nullable';
+
         return $rules;
     }
 }
