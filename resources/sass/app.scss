@@ -1,0 +1,9 @@
+// Variables
+@import 'variables';
+
+// Bootstrap
+@import '~admin-lte/build/scss/adminlte';
+
+.sidebar {
+    overflow: auto;
+}
