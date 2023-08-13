@@ -61,10 +61,6 @@ Contributions to this project are welcome. To contribute, follow these steps:
 
 Please ensure that your contributions adhere to the project's coding conventions and guidelines.
 
-## Acknowledgements
-
-- [Mention any acknowledgements or resources that were helpful during the development]
-
 ## Contact
 
 If you have any questions or suggestions regarding this project, please feel free to post on this repository's issues.
